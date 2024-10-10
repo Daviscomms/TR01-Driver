@@ -23,7 +23,7 @@
 
 
 #define MAJOR_VERSION			0x01
-#define MINOR_VERSION			0x01
+#define MINOR_VERSION			0x02
 
 unsigned int g_TR01_Mixer = 0, g_TR01_MixerTxRx = 0, g_TR01_MixerPath = 0;
 
@@ -82,6 +82,9 @@ void PMIC_test(void);
 
 
 void PAMonitor_test(void);
+
+
+void Tamper_test(void);
 
 
 typedef struct {
@@ -144,6 +147,8 @@ FunctionEntry functionList[] = {
     {"PMIC",						 &PMIC_test},
 
     {"Power Monitor",				 &PAMonitor_test},
+
+   	{"Tamper Detection",			 &Tamper_test},
 };
 
 typedef enum
@@ -2281,6 +2286,87 @@ void PAMonitor_test(void)
 
 	i2c_close(fd);
 
+exit:
+	print_func_end_format(__func__, 0);
+}
+
+
+void Tamper_test(void)
+{
+	uint8_t yValue, ret_value = 0;
+	uint32_t dwDelay = 0;
+	char pInput[100], *pResult = NULL;
+
+	print_func_start_format(__func__);
+
+	int fd = i2c_open("/dev/i2c-2");
+
+	if (fd < 0)
+	{
+		printf("Unable to open /dev/i2c-2\n");
+		return;
+	}
+
+	ret_value = i2c_read(fd, 0x69, 0x05);
+
+	if (ret_value & 0x10)
+	{
+		printf("Tamper detected - reset the status");
+
+		ret_value = i2c_write(fd, 0x69, 0x04, 0x00);
+
+		if (ret_value < 0)
+		{
+			printf("I2C write failed\n");
+			return;
+		}
+
+		ret_value = i2c_write(fd, 0x69, 0x05, 0x00);
+
+		if (ret_value < 0)
+		{
+			printf("I2C write failed\n");
+			return;
+		}
+	}
+
+	printf("Start to conigure the setting\n");
+
+	ret_value = i2c_write(fd, 0x69, 0x02, 0x20);
+
+	if (ret_value < 0)
+	{
+		printf("I2C write failed\n");
+		return;
+	}
+
+	ret_value = i2c_write(fd, 0x69, 0x04, 0x10);
+
+	if (ret_value < 0)
+	{
+		printf("I2C write failed\n");
+		return;
+	}
+	
+	printf("Waiting for the button press...\n");
+
+	while (1)
+	{
+		dwDelay = 100000;
+
+		ret_value = i2c_read(fd, 0x69, 0x05);
+
+		if (ret_value & 0x10)
+		{
+			printf("Tamper detected - test success\n");
+			break;
+		}
+
+		while (dwDelay)
+		{
+			dwDelay--;
+		}
+	}
 exit:
 	print_func_end_format(__func__, 0);
 }
