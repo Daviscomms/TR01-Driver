@@ -23,7 +23,7 @@
 
 
 #define MAJOR_VERSION			0x01
-#define MINOR_VERSION			0x02
+#define MINOR_VERSION			0x03
 
 unsigned int g_TR01_Mixer = 0, g_TR01_MixerTxRx = 0, g_TR01_MixerPath = 0;
 
@@ -85,6 +85,9 @@ void PAMonitor_test(void);
 
 
 void Tamper_test(void);
+
+
+void ADC_test(void);
 
 
 typedef struct {
@@ -149,6 +152,8 @@ FunctionEntry functionList[] = {
     {"Power Monitor",				 &PAMonitor_test},
 
    	{"Tamper Detection",			 &Tamper_test},
+
+   	{"ADC",							 &ADC_test},
 };
 
 typedef enum
@@ -2368,6 +2373,78 @@ void Tamper_test(void)
 		}
 	}
 exit:
+	print_func_end_format(__func__, 0);
+}
+
+
+void ADC_test(void)
+{
+	spi_t spi;
+	uint8_t yValue, ret_value = 0;
+	char pInput[100], *pResult = NULL;
+	uint32_t pOut[10], pIn[10];
+
+	print_func_start_format(__func__);
+
+	printf("Input the ADC(0/1) Channel:");
+
+	memset(pInput, 0x0, sizeof(pInput));
+	pResult = fgets(pInput, sizeof(pInput), stdin);
+
+	yValue = strtol(pInput, &pResult, 16);
+
+	if (yValue != 0 &&
+		yValue != 1)
+	{
+		printf("Please input the correct number.\n");
+		goto exit;
+	}
+
+	int fd = i2c_open("/dev/i2c-2");
+
+	if (fd < 0)
+	{
+		printf("Unable to open /dev/i2c-2\n");
+		goto exit;
+	}
+
+	//if (yValue == 0)
+	{
+		ret_value = spi_init(&spi, "/dev/spidev1.0", 0, 12, 2500000);
+	}
+	//else
+	{
+		//ret_value = spi_init(&spi, "/dev/spidev2.0", 0, 12, 2500000);
+	}
+
+	if (ret_value)
+    {
+        printf("Unabled to init SPI.\n");
+        goto exit;
+    }
+
+	// write refresh command
+	ret_value = 0;
+	ret_value = evt_i2c_write(fd, 0x26, ret_value);
+
+	ret_value = evt_i2c_read(fd, 0x27);
+
+	yValue = (0x10 << yValue) | (ret_value & 0x0F);
+	ret_value = evt_i2c_write(fd, 0x27, yValue);
+
+	ret_value = evt_i2c_read(fd, 0x27);
+	printf("I2C-2 reg 0x%.2X value is:0x%.2X\n", yValue, ret_value);
+
+	memset(pOut, 0x0, sizeof(pOut));
+	memset(pIn, 0x0, sizeof(pIn));
+	spi_exchange32(&spi, pOut, pIn, 12);
+
+	printf("ADC SPI read back:%.8x, %.8x, %.8x\n", pOut[0], pOut[1], pOut[2]);
+exit:
+
+	i2c_close(fd);
+    spi_free(&spi);
+
 	print_func_end_format(__func__, 0);
 }
 
